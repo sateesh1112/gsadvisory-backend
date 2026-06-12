@@ -4,6 +4,7 @@ services:
     env: node
     region: singapore
     plan: free
+    nodeVersion: 20.x
     buildCommand: npm install
     startCommand: npm start
     envVars:
@@ -25,5 +26,5 @@ services:
         sync: false
     disk:
       name: gsadvisory-data
-      mountPath: /opt/render/project/src
+      mountPath: /data
       sizeGB: 1
