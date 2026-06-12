@@ -1,6 +1,6 @@
 const cron       = require('node-cron');
 const nodemailer = require('nodemailer');
-const { db }     = require('../db/setup');
+const { db }     = require('./db/setup');
 
 // ── EMAIL TRANSPORTER ─────────────────────────────────────────────
 function getTransporter() {
