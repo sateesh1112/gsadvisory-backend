@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: gsadvisory-backend
+    env: node
+    region: singapore
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MAIL_USER
+        sync: false
+      - key: MAIL_PASS
+        sync: false
+      - key: MAIL_FROM
+        value: GS Advisory <admin@gsadvisory.in>
+      - key: FRONTEND_URL
+        value: https://gsadvisory.in
+      - key: ADMIN_EMAIL
+        value: admin@gsadvisory.in
+      - key: ADMIN_PASSWORD
+        sync: false
+    disk:
+      name: gsadvisory-data
+      mountPath: /opt/render/project/src
+      sizeGB: 1
