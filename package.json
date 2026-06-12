@@ -1,7 +1,7 @@
 {
   "name": "gsadvisory-backend",
-  "version": "1.0.0",
-  "description": "GS Advisory Backend API",
+  "version": "2.0.0",
+  "description": "GS Advisory Backend API - Full CA Practice Management",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -18,7 +18,8 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.4",
     "express-rate-limit": "^7.2.0",
-    "helmet": "^7.1.0"
+    "helmet": "^7.1.0",
+    "node-cron": "^3.0.3"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"

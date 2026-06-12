@@ -1,18 +1,16 @@
 const Database = require('better-sqlite3');
-const path = require('path');
+const path     = require('path');
 
-// Use /data on Render (persistent disk), fallback to local for development
 const DATA_DIR = process.env.NODE_ENV === 'production' ? '/data' : path.join(__dirname, '..');
 const DB_PATH  = path.join(DATA_DIR, 'gsadvisory.db');
-const db = new Database(DB_PATH);
+const db       = new Database(DB_PATH);
 
-// Enable WAL mode for better performance
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
 function initDB() {
   db.exec(`
-    -- USERS TABLE (employees + clients)
+    -- USERS
     CREATE TABLE IF NOT EXISTS users (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       name        TEXT    NOT NULL,
@@ -21,12 +19,14 @@ function initDB() {
       role        TEXT    NOT NULL CHECK(role IN ('admin','employee','client')),
       phone       TEXT,
       designation TEXT,
+      department  TEXT,
       is_active   INTEGER DEFAULT 1,
+      last_login  TEXT,
       created_at  TEXT    DEFAULT (datetime('now')),
       updated_at  TEXT    DEFAULT (datetime('now'))
     );
 
-    -- CLIENTS TABLE
+    -- CLIENTS
     CREATE TABLE IF NOT EXISTS clients (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
       name         TEXT    NOT NULL,
@@ -35,48 +35,94 @@ function initDB() {
       entity_type  TEXT,
       pan          TEXT,
       gstin        TEXT,
+      tan          TEXT,
       address      TEXT,
       city         TEXT,
+      state        TEXT,
       country      TEXT    DEFAULT 'India',
-      services     TEXT,
+      services     TEXT    DEFAULT '[]',
       status       TEXT    DEFAULT 'active',
       assigned_to  INTEGER REFERENCES users(id),
       user_id      INTEGER REFERENCES users(id),
-      created_at   TEXT    DEFAULT (datetime('now')),
-      updated_at   TEXT    DEFAULT (datetime('now'))
-    );
-
-    -- TASKS TABLE
-    CREATE TABLE IF NOT EXISTS tasks (
-      id           INTEGER PRIMARY KEY AUTOINCREMENT,
-      title        TEXT    NOT NULL,
-      description  TEXT,
-      client_id    INTEGER REFERENCES clients(id),
-      assigned_to  INTEGER REFERENCES users(id),
-      created_by   INTEGER REFERENCES users(id),
-      category     TEXT,
-      priority     TEXT    DEFAULT 'medium' CHECK(priority IN ('low','medium','high','urgent')),
-      status       TEXT    DEFAULT 'pending' CHECK(status IN ('pending','in_progress','in_review','completed','cancelled')),
-      due_date     TEXT,
-      completed_at TEXT,
       notes        TEXT,
       created_at   TEXT    DEFAULT (datetime('now')),
       updated_at   TEXT    DEFAULT (datetime('now'))
     );
 
-    -- INVOICES TABLE
+    -- TASKS
+    CREATE TABLE IF NOT EXISTS tasks (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      title         TEXT    NOT NULL,
+      description   TEXT,
+      client_id     INTEGER REFERENCES clients(id),
+      assigned_to   INTEGER REFERENCES users(id),
+      assigned_by   INTEGER REFERENCES users(id),
+      created_by    INTEGER REFERENCES users(id),
+      category      TEXT,
+      priority      TEXT    DEFAULT 'medium',
+      status        TEXT    DEFAULT 'pending',
+      due_date      TEXT,
+      reminder_date TEXT,
+      completed_at  TEXT,
+      notes         TEXT,
+      is_recurring  INTEGER DEFAULT 0,
+      recurrence    TEXT,
+      parent_task_id INTEGER REFERENCES tasks(id),
+      created_at    TEXT    DEFAULT (datetime('now')),
+      updated_at    TEXT    DEFAULT (datetime('now'))
+    );
+
+    -- TASK HISTORY (audit trail)
+    CREATE TABLE IF NOT EXISTS task_history (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id    INTEGER REFERENCES tasks(id),
+      user_id    INTEGER REFERENCES users(id),
+      action     TEXT    NOT NULL,
+      old_value  TEXT,
+      new_value  TEXT,
+      comment    TEXT,
+      created_at TEXT    DEFAULT (datetime('now'))
+    );
+
+    -- TASK COMMENTS
+    CREATE TABLE IF NOT EXISTS task_comments (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id    INTEGER REFERENCES tasks(id),
+      user_id    INTEGER REFERENCES users(id),
+      comment    TEXT    NOT NULL,
+      created_at TEXT    DEFAULT (datetime('now'))
+    );
+
+    -- COMPLIANCE CALENDAR
+    CREATE TABLE IF NOT EXISTS compliance_calendar (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      title        TEXT    NOT NULL,
+      type         TEXT    NOT NULL,
+      due_date     TEXT    NOT NULL,
+      period       TEXT,
+      applicable_to TEXT   DEFAULT 'all',
+      client_id    INTEGER REFERENCES clients(id),
+      task_id      INTEGER REFERENCES tasks(id),
+      status       TEXT    DEFAULT 'upcoming',
+      reminder_sent INTEGER DEFAULT 0,
+      notes        TEXT,
+      created_by   INTEGER REFERENCES users(id),
+      created_at   TEXT    DEFAULT (datetime('now'))
+    );
+
+    -- INVOICES
     CREATE TABLE IF NOT EXISTS invoices (
       id             INTEGER PRIMARY KEY AUTOINCREMENT,
       invoice_number TEXT    NOT NULL UNIQUE,
       client_id      INTEGER REFERENCES clients(id),
       created_by     INTEGER REFERENCES users(id),
-      items          TEXT    NOT NULL,
-      subtotal       REAL    NOT NULL,
+      items          TEXT    NOT NULL DEFAULT '[]',
+      subtotal       REAL    DEFAULT 0,
       tax_rate       REAL    DEFAULT 18,
-      tax_amount     REAL    NOT NULL,
-      total          REAL    NOT NULL,
+      tax_amount     REAL    DEFAULT 0,
+      total          REAL    DEFAULT 0,
       currency       TEXT    DEFAULT 'INR',
-      status         TEXT    DEFAULT 'pending' CHECK(status IN ('draft','pending','paid','overdue','cancelled')),
+      status         TEXT    DEFAULT 'draft',
       due_date       TEXT,
       paid_date      TEXT,
       notes          TEXT,
@@ -85,22 +131,24 @@ function initDB() {
       updated_at     TEXT    DEFAULT (datetime('now'))
     );
 
-    -- DOCUMENTS TABLE
+    -- DOCUMENTS
     CREATE TABLE IF NOT EXISTS documents (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      client_id   INTEGER REFERENCES clients(id),
-      uploaded_by INTEGER REFERENCES users(id),
-      name        TEXT    NOT NULL,
-      original_name TEXT  NOT NULL,
-      file_path   TEXT    NOT NULL,
-      file_size   INTEGER,
-      mime_type   TEXT,
-      category    TEXT,
-      description TEXT,
-      created_at  TEXT    DEFAULT (datetime('now'))
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id     INTEGER REFERENCES clients(id),
+      task_id       INTEGER REFERENCES tasks(id),
+      uploaded_by   INTEGER REFERENCES users(id),
+      name          TEXT    NOT NULL,
+      original_name TEXT    NOT NULL,
+      file_path     TEXT    NOT NULL,
+      file_size     INTEGER,
+      mime_type     TEXT,
+      category      TEXT    DEFAULT 'general',
+      description   TEXT,
+      is_shared     INTEGER DEFAULT 0,
+      created_at    TEXT    DEFAULT (datetime('now'))
     );
 
-    -- CONTACT INQUIRIES TABLE
+    -- CONTACT INQUIRIES
     CREATE TABLE IF NOT EXISTS inquiries (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       name       TEXT    NOT NULL,
@@ -109,26 +157,42 @@ function initDB() {
       company    TEXT,
       service    TEXT,
       message    TEXT    NOT NULL,
-      status     TEXT    DEFAULT 'new' CHECK(status IN ('new','read','replied','closed')),
+      status     TEXT    DEFAULT 'new',
       created_at TEXT    DEFAULT (datetime('now'))
     );
 
-    -- COMPLIANCE TABLE
-    CREATE TABLE IF NOT EXISTS compliance (
+    -- REMINDERS LOG
+    CREATE TABLE IF NOT EXISTS reminders (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      type         TEXT    NOT NULL,
+      recipient_id INTEGER REFERENCES users(id),
+      client_id    INTEGER REFERENCES clients(id),
+      task_id      INTEGER REFERENCES tasks(id),
+      subject      TEXT    NOT NULL,
+      message      TEXT,
+      sent_to      TEXT,
+      status       TEXT    DEFAULT 'pending',
+      scheduled_at TEXT,
+      sent_at      TEXT,
+      created_at   TEXT    DEFAULT (datetime('now'))
+    );
+
+    -- BILLABLE HOURS
+    CREATE TABLE IF NOT EXISTS billable_hours (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      client_id   INTEGER REFERENCES clients(id),
       task_id     INTEGER REFERENCES tasks(id),
-      type        TEXT    NOT NULL,
-      period      TEXT,
-      due_date    TEXT    NOT NULL,
-      filed_date  TEXT,
-      status      TEXT    DEFAULT 'upcoming',
-      notes       TEXT,
+      client_id   INTEGER REFERENCES clients(id),
+      user_id     INTEGER REFERENCES users(id),
+      hours       REAL    NOT NULL,
+      rate        REAL    DEFAULT 0,
+      description TEXT,
+      date        TEXT    DEFAULT (date('now')),
+      is_billed   INTEGER DEFAULT 0,
+      invoice_id  INTEGER REFERENCES invoices(id),
       created_at  TEXT    DEFAULT (datetime('now'))
     );
   `);
-
-  console.log('✅ Database tables initialized');
+  console.log('✅ Database initialized');
 }
 
 module.exports = { db, initDB };
