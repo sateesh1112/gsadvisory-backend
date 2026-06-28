@@ -74,28 +74,68 @@ router.post('/', requireRole('admin', 'employee'), (req, res) => {
 
 // ── PUT /api/clients/:id ─────────────────────────────────────────
 router.put('/:id', requireRole('admin', 'employee'), (req, res) => {
-  const { name, email, phone, entity_type, pan, gstin, address, city, country, services, assigned_to, status } = req.body;
+  const {
+    name, email, phone, alternate_phone, whatsapp, entity_type,
+    pan, gstin, tan, cin, udyam_number, nature_of_business,
+    address, city, state, pin_code, country,
+    annual_turnover, num_employees, current_auditor,
+    bank_name, account_holder, ifsc, bank_branch,
+    services, assigned_to, status, notes
+  } = req.body;
+
+  // Run migrations for any missing columns
+  const newCols = ['alternate_phone','whatsapp','state','pin_code','tan','cin','udyam_number',
+    'nature_of_business','annual_turnover','num_employees','current_auditor',
+    'bank_name','account_holder','ifsc','bank_branch','status','notes'];
+  newCols.forEach(col => {
+    try { db.exec(`ALTER TABLE clients ADD COLUMN ${col} TEXT`); } catch(e) {}
+  });
 
   db.prepare(`
     UPDATE clients SET
-      name = COALESCE(?, name),
-      email = COALESCE(?, email),
-      phone = COALESCE(?, phone),
-      entity_type = COALESCE(?, entity_type),
-      pan = COALESCE(?, pan),
-      gstin = COALESCE(?, gstin),
-      address = COALESCE(?, address),
-      city = COALESCE(?, city),
-      country = COALESCE(?, country),
-      services = COALESCE(?, services),
-      assigned_to = COALESCE(?, assigned_to),
-      status = COALESCE(?, status),
-      updated_at = datetime('now')
+      name               = COALESCE(?, name),
+      email              = COALESCE(?, email),
+      phone              = COALESCE(?, phone),
+      alternate_phone    = COALESCE(?, alternate_phone),
+      whatsapp           = COALESCE(?, whatsapp),
+      entity_type        = COALESCE(?, entity_type),
+      pan                = COALESCE(?, pan),
+      gstin              = COALESCE(?, gstin),
+      tan                = COALESCE(?, tan),
+      cin                = COALESCE(?, cin),
+      udyam_number       = COALESCE(?, udyam_number),
+      nature_of_business = COALESCE(?, nature_of_business),
+      address            = COALESCE(?, address),
+      city               = COALESCE(?, city),
+      state              = COALESCE(?, state),
+      pin_code           = COALESCE(?, pin_code),
+      country            = COALESCE(?, country),
+      annual_turnover    = COALESCE(?, annual_turnover),
+      num_employees      = COALESCE(?, num_employees),
+      current_auditor    = COALESCE(?, current_auditor),
+      bank_name          = COALESCE(?, bank_name),
+      account_holder     = COALESCE(?, account_holder),
+      ifsc               = COALESCE(?, ifsc),
+      bank_branch        = COALESCE(?, bank_branch),
+      services           = COALESCE(?, services),
+      assigned_to        = COALESCE(?, assigned_to),
+      status             = COALESCE(?, status),
+      notes              = COALESCE(?, notes),
+      updated_at         = datetime('now')
     WHERE id = ?
-  `).run(name, email, phone, entity_type, pan, gstin, address, city, country,
-         services ? JSON.stringify(services) : null, assigned_to, status, req.params.id);
+  `).run(
+    name, email, phone, alternate_phone, whatsapp, entity_type,
+    pan, gstin, tan, cin, udyam_number, nature_of_business,
+    address, city, state, pin_code, country,
+    annual_turnover, num_employees, current_auditor,
+    bank_name, account_holder, ifsc, bank_branch,
+    services ? JSON.stringify(services) : null,
+    assigned_to, status, notes,
+    req.params.id
+  );
 
-  res.json({ success: true, message: 'Client updated.' });
+  const updated = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
+  res.json({ success: true, message: 'Client updated.', client: updated });
 });
 
 // ── DELETE /api/clients/:id ──────────────────────────────────────
