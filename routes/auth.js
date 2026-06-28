@@ -106,4 +106,25 @@ router.delete('/users/:id', authMiddleware, requireRole('admin'), (req, res) => 
   res.json({ success: true, message: 'User deactivated.' });
 });
 
+
+// ── POST /api/auth/reset-password (admin only) ───────────────────
+router.post('/reset-password', authMiddleware, requireRole('admin'), (req, res) => {
+  const { user_id, new_password } = req.body;
+
+  if (!user_id || !new_password) {
+    return res.status(400).json({ success: false, message: 'user_id and new_password are required.' });
+  }
+  if (new_password.length < 8) {
+    return res.status(400).json({ success: false, message: 'Password must be at least 8 characters.' });
+  }
+
+  const user = db.prepare('SELECT id, name, email FROM users WHERE id = ?').get(user_id);
+  if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+
+  const hashed = bcrypt.hashSync(new_password, 12);
+  db.prepare('UPDATE users SET password = ?, updated_at = datetime("now") WHERE id = ?').run(hashed, user_id);
+
+  res.json({ success: true, message: `Password reset for ${user.name} (${user.email}).` });
+});
+
 module.exports = router;
