@@ -226,7 +226,31 @@ function initDB() {
       invoice_id  INTEGER REFERENCES invoices(id),
       created_at  TEXT    DEFAULT (datetime('now'))
     );
-  `);
+  
+    -- REGULATORY UPDATES (RSS feeds)
+    CREATE TABLE IF NOT EXISTS regulatory_updates (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      title         TEXT    NOT NULL,
+      summary       TEXT,
+      plain_summary TEXT,
+      link          TEXT,
+      source        TEXT    NOT NULL,
+      category      TEXT,
+      tag           TEXT,
+      urgency       TEXT    DEFAULT 'Medium',
+      pub_date      TEXT,
+      content_hash  TEXT    UNIQUE NOT NULL,
+      feed_name     TEXT,
+      is_read       INTEGER DEFAULT 0,
+      created_at    TEXT    DEFAULT (datetime('now'))
+    );
+
+    -- SYSTEM SETTINGS
+    CREATE TABLE IF NOT EXISTS system_settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT
+    );
+`);
   console.log('✅ Database initialized');
 }
 

@@ -278,6 +278,20 @@ function startScheduler() {
   console.log('   💰 Invoice reminders:     Every Monday 10:00 AM');
 }
 
+
+// ── RSS FEED FETCH — Every 6 hours ──────────────────────────────
+cron.schedule('0 */6 * * *', async () => {
+  console.log('📰 Fetching regulatory RSS feeds...');
+  try {
+    const { fetchAllFeeds } = require('./services/feedFetcher');
+    const result = await fetchAllFeeds();
+    console.log(`✅ Feeds fetched: ${result.added} new, ${result.skipped} duplicates`);
+  } catch(e) {
+    console.error('❌ Feed fetch error:', e.message);
+  }
+}, { timezone: 'Asia/Dubai' });
+
+
 module.exports = {
   startScheduler,
   sendManualReminder,
