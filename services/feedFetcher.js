@@ -1,248 +1,287 @@
 /**
  * GS Advisory — Feed Fetcher Service
- * Fetches RSS/XML from Income Tax, GST, MCA, ICAI, SEBI portals
- * Parses, deduplicates, AI-classifies and stores in SQLite
+ * Fetches RSS/XML feeds with multiple fallback strategies:
+ * 1. Direct fetch (works for open feeds)
+ * 2. RSS2JSON API proxy (bypasses 403 blocks)
+ * 3. AllOrigins proxy
  */
 
 const fetch   = require('node-fetch');
 const xml2js  = require('xml2js');
 const crypto  = require('crypto');
-const db      = require('../db/setup');
+const { db }  = require('../db/setup');
 
-// ── FEED SOURCES ────────────────────────────────────────────────
+// ── RSS2JSON proxy (free, no key needed, bypasses govt blocks) ────
+const RSS2JSON = 'https://api.rss2json.com/v1/api.json?rss_url=';
+const ALLORIGINS = 'https://api.allorigins.win/raw?url=';
+
+// ── FEED SOURCES ─────────────────────────────────────────────────
 const FEEDS = [
-  // Income Tax India
   {
-    id:       'it-notifications',
-    name:     'Income Tax Notifications',
-    url:      'https://www.incometaxindia.gov.in/notification-rss-feed/-/asset_publisher/bxhj/rss',
-    source:   'Income Tax',
+    id: 'it-notifications',
+    name: 'Income Tax Notifications',
+    url: 'https://www.incometaxindia.gov.in/notification-rss-feed/-/asset_publisher/bxhj/rss',
+    source: 'Income Tax',
     category: 'Notification',
-    tag:      'it-india',
   },
   {
-    id:       'it-circulars',
-    name:     'Income Tax Circulars',
-    url:      'https://www.incometaxindia.gov.in/circular-rss-feed/-/asset_publisher/bxhj/rss',
-    source:   'Income Tax',
+    id: 'it-circulars',
+    name: 'Income Tax Circulars',
+    url: 'https://www.incometaxindia.gov.in/circular-rss-feed/-/asset_publisher/bxhj/rss',
+    source: 'Income Tax',
     category: 'Circular',
-    tag:      'it-india',
   },
   {
-    id:       'it-press',
-    name:     'Income Tax Press Releases',
-    url:      'https://www.incometaxindia.gov.in/press-release-rss-feed/-/asset_publisher/bxhj/rss',
-    source:   'Income Tax',
+    id: 'it-press',
+    name: 'Income Tax Press Releases',
+    url: 'https://www.incometaxindia.gov.in/press-release-rss-feed/-/asset_publisher/bxhj/rss',
+    source: 'Income Tax',
     category: 'Press Release',
-    tag:      'it-india',
   },
-  // GST Council (using CBIC RSS)
   {
-    id:       'cbic-circulars',
-    name:     'CBIC Circulars & Notifications',
-    url:      'https://cbic-gst.gov.in/rss/circularrss.xml',
-    source:   'GST / CBIC',
+    id: 'cbic-gst',
+    name: 'CBIC GST Notifications',
+    url: 'https://cbic-gst.gov.in/rss/circularrss.xml',
+    source: 'GST / CBIC',
     category: 'Circular',
-    tag:      'gst',
   },
-  // MCA / Company Law
   {
-    id:       'mca-news',
-    name:     'MCA Press Releases',
-    url:      'https://www.mca.gov.in/MCA21/dca/download/PressRelease_RSS.xml',
-    source:   'MCA',
+    id: 'sebi-circulars',
+    name: 'SEBI Circulars',
+    url: 'https://www.sebi.gov.in/sebirss.xml',
+    source: 'SEBI',
+    category: 'Circular',
+  },
+  {
+    id: 'mca-news',
+    name: 'MCA Press Releases',
+    url: 'https://www.mca.gov.in/MCA21/dca/download/PressRelease_RSS.xml',
+    source: 'MCA',
     category: 'Press Release',
-    tag:      'mca',
   },
-  // SEBI
   {
-    id:       'sebi-news',
-    name:     'SEBI Circulars',
-    url:      'https://www.sebi.gov.in/sebirss.xml',
-    source:   'SEBI',
-    category: 'Circular',
-    tag:      'sebi',
-  },
-  // ICAI
-  {
-    id:       'icai-news',
-    name:     'ICAI Announcements',
-    url:      'https://www.icai.org/rss.html',
-    source:   'ICAI',
+    id: 'icai-news',
+    name: 'ICAI Announcements',
+    url: 'https://resource.cdn.icai.org/rss/news.xml',
+    source: 'ICAI',
     category: 'Announcement',
-    tag:      'icai',
+  },
+  // Additional open feeds that work without proxy
+  {
+    id: 'pib-finance',
+    name: 'PIB Finance Ministry',
+    url: 'https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3',
+    source: 'PIB',
+    category: 'Press Release',
   },
 ];
 
-// ── AI CLASSIFICATION ──────────────────────────────────────────
-// Uses Claude API if ANTHROPIC_API_KEY is set, else falls back to keyword rules
+// ── AI CLASSIFICATION (Claude Haiku) ─────────────────────────────
 async function classifyUpdate(title, summary) {
-  const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-
-  if (ANTHROPIC_KEY) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (key) {
     try {
       const resp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
-          'Content-Type':      'application/json',
-          'x-api-key':         ANTHROPIC_KEY,
+          'Content-Type': 'application/json',
+          'x-api-key': key,
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model:      'claude-haiku-4-5-20251001',
-          max_tokens: 150,
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 120,
           messages: [{
-            role:    'user',
-            content: `Classify this Indian regulatory update into ONE of these tags: [GST, Income Tax, TDS, ROC/MCA, SEBI, ICAI, Customs/Excise, Labour Law, Banking, UAE Tax, General].
-Also assign urgency: [High, Medium, Low].
-Also write a 1-sentence plain-English summary (max 20 words).
+            role: 'user',
+            content: `Classify this Indian regulatory update. Respond ONLY as JSON with no preamble:
+{"tag":"<ONE OF: GST|Income Tax|TDS|ROC/MCA|SEBI|ICAI|Customs|Labour Law|Banking|UAE Tax|General>","urgency":"<High|Medium|Low>","plain_summary":"<max 15 words plain English>"}
 
-Title: ${title}
-Summary: ${summary || ''}
-
-Respond ONLY as JSON: {"tag":"...", "urgency":"...", "plain_summary":"..."}`
+Title: ${title.substring(0, 200)}
+Summary: ${(summary||'').substring(0, 300)}`
           }]
         })
       });
       const data = await resp.json();
-      const text = data.content?.[0]?.text || '{}';
-      const clean = text.replace(/```json|```/g,'').trim();
-      return JSON.parse(clean);
+      const text = (data.content?.[0]?.text || '{}').replace(/```json|```/g,'').trim();
+      return JSON.parse(text);
     } catch(e) {
-      console.error('AI classify error:', e.message);
+      // fall through to keyword
     }
   }
 
-  // ── KEYWORD FALLBACK ─────────────────────────────────────────
-  const combined = (title + ' ' + (summary||'')).toLowerCase();
+  // Keyword fallback
+  const t = (title + ' ' + (summary||'')).toLowerCase();
   let tag = 'General', urgency = 'Medium';
+  if (/gst|igst|sgst|cgst|gstr|gstin/.test(t))               tag = 'GST';
+  else if (/income.?tax|itr|cbdt|form.?16|26as|ais/.test(t)) tag = 'Income Tax';
+  else if (/\btds\b|\btcs\b|tax deduct/.test(t))              tag = 'TDS';
+  else if (/mca|roc|\bcompan|llp|incorpo/.test(t))            tag = 'ROC/MCA';
+  else if (/sebi|securit|mutual fund/.test(t))                tag = 'SEBI';
+  else if (/icai|chartered account/.test(t))                  tag = 'ICAI';
+  else if (/custom|excise|import|export|dgft/.test(t))        tag = 'Customs';
+  else if (/pf|esic|epfo|labour|wage|gratuity/.test(t))       tag = 'Labour Law';
+  else if (/rbi|bank|nbfc|credit/.test(t))                    tag = 'Banking';
+  else if (/vat|uae|fta|emirates/.test(t))                    tag = 'UAE Tax';
 
-  if (/gst|igst|sgst|cgst|gstr|gstin/.test(combined))      tag = 'GST';
-  else if (/income tax|itr|tds|tcs|pan|form 16|26as/.test(combined)) tag = 'Income Tax';
-  else if (/tds|tcs|tax deduct/.test(combined))             tag = 'TDS';
-  else if (/mca|roc|company|llp|incorporation/.test(combined)) tag = 'ROC/MCA';
-  else if (/sebi|securities|mutual fund|market/.test(combined)) tag = 'SEBI';
-  else if (/icai|chartered accountant|ca exam/.test(combined)) tag = 'ICAI';
-  else if (/customs|excise|import|export/.test(combined))   tag = 'Customs/Excise';
-  else if (/pf|esic|epfo|labour|wage/.test(combined))       tag = 'Labour Law';
-  else if (/rbi|bank|nbfc|credit/.test(combined))           tag = 'Banking';
-  else if (/vat|uae|fta|emirates/.test(combined))           tag = 'UAE Tax';
-
-  if (/urgent|immediate|penalty|deadline|last date|due date/.test(combined)) urgency = 'High';
-  else if (/amendment|clarification|extension/.test(combined)) urgency = 'Medium';
-  else urgency = 'Low';
+  if (/urgent|penalty|last.?date|due.?date|deadline|extended|extension/.test(t)) urgency = 'High';
+  else if (/amendment|clarif|circular|notif/.test(t))         urgency = 'Medium';
+  else                                                         urgency = 'Low';
 
   return { tag, urgency, plain_summary: '' };
 }
 
-// ── RSS PARSER ─────────────────────────────────────────────────
+// ── FETCH ONE FEED — with proxy fallback ─────────────────────────
+async function fetchRaw(url) {
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'Accept': 'application/rss+xml,application/xml,text/xml,*/*',
+  };
+
+  // Strategy 1: Direct
+  try {
+    const r = await fetch(url, { headers, timeout: 12000 });
+    if (r.ok) {
+      const text = await r.text();
+      if (text.includes('<rss') || text.includes('<feed') || text.includes('<?xml')) return { text, via: 'direct' };
+    }
+  } catch(e) {}
+
+  // Strategy 2: RSS2JSON API (free tier, no key, great for govt sites)
+  try {
+    const r = await fetch(RSS2JSON + encodeURIComponent(url), { timeout: 15000 });
+    if (r.ok) {
+      const j = await r.json();
+      if (j.status === 'ok' && j.items?.length) return { json: j, via: 'rss2json' };
+    }
+  } catch(e) {}
+
+  // Strategy 3: AllOrigins proxy
+  try {
+    const r = await fetch(ALLORIGINS + encodeURIComponent(url), { timeout: 15000 });
+    if (r.ok) {
+      const text = await r.text();
+      if (text.includes('<rss') || text.includes('<feed')) return { text, via: 'allorigins' };
+    }
+  } catch(e) {}
+
+  throw new Error('All fetch strategies failed');
+}
+
+// ── PARSE RSS XML ─────────────────────────────────────────────────
 function parseRSS(xmlString) {
   return new Promise((resolve, reject) => {
     xml2js.parseString(xmlString, { explicitArray: false, trim: true }, (err, result) => {
       if (err) return reject(err);
       try {
-        const channel = result?.rss?.channel || result?.feed;
-        const rawItems = channel?.item || channel?.entry || [];
-        const items = Array.isArray(rawItems) ? rawItems : [rawItems];
-        resolve(items.map(item => ({
-          title:   item.title?._   || item.title   || '',
-          link:    item.link?.href || item.link    || item.guid?._ || item.guid || '',
-          summary: item.description || item.summary?._ || item.summary || item.content?._ || '',
-          pubDate: item.pubDate || item.published || item.updated || new Date().toISOString(),
-          guid:    item.guid?._ || item.guid || item.id || item.link || '',
+        const ch = result?.rss?.channel || result?.feed;
+        const raw = ch?.item || ch?.entry || [];
+        const items = Array.isArray(raw) ? raw : [raw];
+        resolve(items.filter(Boolean).map(i => ({
+          title:   strip(i.title?._ || i.title || ''),
+          link:    i.link?.href || i.link || i.guid?._ || i.guid || '',
+          summary: strip(i.description || i.summary?._ || i.summary || i.content?._ || ''),
+          pubDate: i.pubDate || i.published || i.updated || new Date().toISOString(),
+          guid:    i.guid?._ || i.guid || i.id || i.link || i.title || '',
         })));
       } catch(e) { reject(e); }
     });
   });
 }
 
-// ── HASH FOR DEDUP ─────────────────────────────────────────────
-function hashItem(item) {
-  return crypto.createHash('sha256')
-    .update((item.guid || item.link || item.title).trim())
-    .digest('hex');
+// ── PARSE RSS2JSON RESPONSE ───────────────────────────────────────
+function parseRSS2JSON(json) {
+  return (json.items || []).map(i => ({
+    title:   strip(i.title || ''),
+    link:    i.link || i.guid || '',
+    summary: strip(i.description || i.content || ''),
+    pubDate: i.pubDate || new Date().toISOString(),
+    guid:    i.guid || i.link || i.title || '',
+  }));
 }
 
-// ── FETCH ONE FEED ─────────────────────────────────────────────
-async function fetchFeed(feedConfig) {
-  const { url, source, category, tag: defaultTag, name } = feedConfig;
-  let added = 0, skipped = 0, errors = 0;
+function strip(html) {
+  return (html||'').replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g,' ').trim();
+}
+
+function hash(item) {
+  return crypto.createHash('sha256').update((item.guid||item.link||item.title||'').trim()).digest('hex');
+}
+
+function parseDate(str) {
+  try {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+  } catch(e) {}
+  return new Date().toISOString().split('T')[0];
+}
+
+// ── FETCH + PROCESS ONE FEED ──────────────────────────────────────
+async function fetchFeed(feed) {
+  let added = 0, skipped = 0;
 
   try {
-    const resp = await fetch(url, {
-      timeout: 15000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; GSAdvisoryBot/1.0; +https://gsadvisory.in)',
-        'Accept':     'application/rss+xml, application/xml, text/xml, */*',
-      }
-    });
+    const raw = await fetchRaw(feed.url);
+    let items = [];
 
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const xml  = await resp.text();
-    const items = await parseRSS(xml);
+    if (raw.json) {
+      items = parseRSS2JSON(raw.json);
+    } else {
+      items = await parseRSS(raw.text);
+    }
+
+    console.log(`📰 [${feed.name}] via ${raw.via}: ${items.length} items`);
 
     for (const item of items) {
       if (!item.title) continue;
-      const hash = hashItem(item);
-
-      // Duplicate check
-      const exists = db.prepare('SELECT id FROM regulatory_updates WHERE content_hash = ?').get(hash);
+      const h = hash(item);
+      const exists = db.prepare('SELECT id FROM regulatory_updates WHERE content_hash = ?').get(h);
       if (exists) { skipped++; continue; }
 
-      // Strip HTML from summary
-      const cleanSummary = (item.summary||'').replace(/<[^>]+>/g,'').replace(/&[a-z]+;/gi,'').trim();
-
-      // AI classify
-      const classified = await classifyUpdate(item.title, cleanSummary);
-
-      // Parse date
-      let pubDate = item.pubDate ? new Date(item.pubDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-      if (pubDate === 'Invalid Date') pubDate = new Date().toISOString().split('T')[0];
+      const classified = await classifyUpdate(item.title, item.summary);
 
       db.prepare(`
         INSERT INTO regulatory_updates
           (title, summary, plain_summary, link, source, category, tag, urgency, pub_date, content_hash, feed_name, is_read)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
       `).run(
-        item.title.trim(),
-        cleanSummary.substring(0, 1000),
+        item.title.substring(0, 500),
+        (item.summary||'').substring(0, 1000),
         classified.plain_summary || '',
         item.link || '',
-        source,
-        classified.tag || category,
-        defaultTag,
+        feed.source,
+        classified.tag || feed.category,
+        feed.id,
         classified.urgency || 'Medium',
-        pubDate,
-        hash,
-        name,
+        parseDate(item.pubDate),
+        h,
+        feed.name,
       );
       added++;
     }
 
-    console.log(`✅ [${name}] added=${added} skipped=${skipped}`);
+    console.log(`✅ [${feed.name}] added=${added} skipped=${skipped}`);
   } catch(e) {
-    console.error(`❌ [${name}] ${e.message}`);
-    errors++;
+    console.error(`❌ [${feed.name}] ${e.message}`);
   }
 
-  return { added, skipped, errors };
+  return { added, skipped };
 }
 
-// ── FETCH ALL FEEDS ────────────────────────────────────────────
+// ── FETCH ALL FEEDS ───────────────────────────────────────────────
 async function fetchAllFeeds() {
-  let totalAdded = 0, totalSkipped = 0, totalErrors = 0;
+  let totalAdded = 0, totalSkipped = 0;
 
   for (const feed of FEEDS) {
-    const result = await fetchFeed(feed);
-    totalAdded   += result.added;
-    totalSkipped += result.skipped;
-    totalErrors  += result.errors;
+    const r = await fetchFeed(feed);
+    totalAdded   += r.added;
+    totalSkipped += r.skipped;
   }
 
-  // Update last_fetch timestamp
-  db.prepare("INSERT OR REPLACE INTO system_settings (key, value) VALUES ('last_feed_fetch', ?)").run(new Date().toISOString());
+  try {
+    db.prepare("INSERT OR REPLACE INTO system_settings (key, value) VALUES ('last_feed_fetch', ?)").run(new Date().toISOString());
+  } catch(e) {}
 
-  return { added: totalAdded, skipped: totalSkipped, errors: totalErrors };
+  return { added: totalAdded, skipped: totalSkipped };
 }
 
 module.exports = { fetchAllFeeds, FEEDS };

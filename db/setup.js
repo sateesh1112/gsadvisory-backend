@@ -10,39 +10,48 @@ db.pragma('foreign_keys = ON');
 
 function initDB() {
   // ── MIGRATIONS: add columns safely if they don't exist ──────────
-  try {
-    db.exec(`ALTER TABLE users ADD COLUMN department TEXT`);
-  } catch(e) { /* column already exists — ignore */ }
-  try {
-    db.exec(`ALTER TABLE users ADD COLUMN qualification TEXT`);
-  } catch(e) {}
-  try {
-    db.exec(`ALTER TABLE users ADD COLUMN address TEXT`);
-  } catch(e) {}
-  try {
-    db.exec(`ALTER TABLE clients ADD COLUMN services TEXT`);
-  } catch(e) {}
-  try {
-    db.exec(`ALTER TABLE clients ADD COLUMN notes TEXT`);
-  } catch(e) {}
-  try {
-    db.exec(`ALTER TABLE clients ADD COLUMN assigned_to INTEGER`);
-  } catch(e) {}
-  try {
-    db.exec(`ALTER TABLE compliance_calendar ADD COLUMN applicable_to TEXT`);
-  } catch(e) {}
-  try {
-    db.exec(`ALTER TABLE compliance_calendar ADD COLUMN filed_date TEXT`);
-  } catch(e) {}
-  try {
-    db.exec(`ALTER TABLE tasks ADD COLUMN reminder_date TEXT`);
-  } catch(e) {}
-  try {
-    db.exec(`ALTER TABLE tasks ADD COLUMN is_recurring INTEGER DEFAULT 0`);
-  } catch(e) {}
-  try {
-    db.exec(`ALTER TABLE tasks ADD COLUMN recurrence TEXT`);
-  } catch(e) {}
+  const migrations = [
+    // users table
+    "ALTER TABLE users ADD COLUMN department TEXT",
+    "ALTER TABLE users ADD COLUMN qualification TEXT",
+    "ALTER TABLE users ADD COLUMN address TEXT",
+    "ALTER TABLE users ADD COLUMN last_login TEXT",
+    "ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1",
+    // tasks table
+    "ALTER TABLE tasks ADD COLUMN assigned_by INTEGER",
+    "ALTER TABLE tasks ADD COLUMN created_by INTEGER",
+    "ALTER TABLE tasks ADD COLUMN description TEXT",
+    "ALTER TABLE tasks ADD COLUMN reminder_date TEXT",
+    "ALTER TABLE tasks ADD COLUMN is_recurring INTEGER DEFAULT 0",
+    "ALTER TABLE tasks ADD COLUMN recurrence TEXT",
+    // clients table
+    "ALTER TABLE clients ADD COLUMN services TEXT",
+    "ALTER TABLE clients ADD COLUMN notes TEXT",
+    "ALTER TABLE clients ADD COLUMN assigned_to INTEGER",
+    "ALTER TABLE clients ADD COLUMN status TEXT DEFAULT 'active'",
+    "ALTER TABLE clients ADD COLUMN alternate_phone TEXT",
+    "ALTER TABLE clients ADD COLUMN whatsapp TEXT",
+    "ALTER TABLE clients ADD COLUMN state TEXT",
+    "ALTER TABLE clients ADD COLUMN pin_code TEXT",
+    "ALTER TABLE clients ADD COLUMN tan TEXT",
+    "ALTER TABLE clients ADD COLUMN cin TEXT",
+    "ALTER TABLE clients ADD COLUMN udyam_number TEXT",
+    "ALTER TABLE clients ADD COLUMN nature_of_business TEXT",
+    "ALTER TABLE clients ADD COLUMN annual_turnover TEXT",
+    "ALTER TABLE clients ADD COLUMN num_employees TEXT",
+    "ALTER TABLE clients ADD COLUMN current_auditor TEXT",
+    "ALTER TABLE clients ADD COLUMN bank_name TEXT",
+    "ALTER TABLE clients ADD COLUMN account_holder TEXT",
+    "ALTER TABLE clients ADD COLUMN ifsc TEXT",
+    "ALTER TABLE clients ADD COLUMN bank_branch TEXT",
+    // compliance
+    "ALTER TABLE compliance_calendar ADD COLUMN applicable_to TEXT",
+    "ALTER TABLE compliance_calendar ADD COLUMN filed_date TEXT",
+  ];
+  migrations.forEach(sql => {
+    try { db.exec(sql); } catch(e) { /* column exists — ignore */ }
+  });
+
 
   db.exec(`
     -- USERS

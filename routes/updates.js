@@ -8,7 +8,7 @@
 
 const express = require('express');
 const router  = express.Router();
-const db      = require('../db/setup');
+const { db }  = require('../db/setup');
 const { authMiddleware, requireRole } = require('../middleware/auth');
 const { fetchAllFeeds } = require('../services/feedFetcher');
 
