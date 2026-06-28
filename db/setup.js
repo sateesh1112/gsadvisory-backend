@@ -9,6 +9,41 @@ db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
 function initDB() {
+  // ── MIGRATIONS: add columns safely if they don't exist ──────────
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN department TEXT`);
+  } catch(e) { /* column already exists — ignore */ }
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN qualification TEXT`);
+  } catch(e) {}
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN address TEXT`);
+  } catch(e) {}
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN services TEXT`);
+  } catch(e) {}
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN notes TEXT`);
+  } catch(e) {}
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN assigned_to INTEGER`);
+  } catch(e) {}
+  try {
+    db.exec(`ALTER TABLE compliance_calendar ADD COLUMN applicable_to TEXT`);
+  } catch(e) {}
+  try {
+    db.exec(`ALTER TABLE compliance_calendar ADD COLUMN filed_date TEXT`);
+  } catch(e) {}
+  try {
+    db.exec(`ALTER TABLE tasks ADD COLUMN reminder_date TEXT`);
+  } catch(e) {}
+  try {
+    db.exec(`ALTER TABLE tasks ADD COLUMN is_recurring INTEGER DEFAULT 0`);
+  } catch(e) {}
+  try {
+    db.exec(`ALTER TABLE tasks ADD COLUMN recurrence TEXT`);
+  } catch(e) {}
+
   db.exec(`
     -- USERS
     CREATE TABLE IF NOT EXISTS users (
