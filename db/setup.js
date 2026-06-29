@@ -17,6 +17,8 @@ function initDB() {
     "ALTER TABLE users ADD COLUMN address TEXT",
     "ALTER TABLE users ADD COLUMN last_login TEXT",
     "ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1",
+    "ALTER TABLE users ADD COLUMN temp_password_changed INTEGER DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN last_login TEXT",
     // tasks table
     "ALTER TABLE tasks ADD COLUMN assigned_by INTEGER",
     "ALTER TABLE tasks ADD COLUMN created_by INTEGER",

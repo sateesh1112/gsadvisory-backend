@@ -84,4 +84,41 @@ router.put('/:id/read', (req, res) => {
   res.json({ success: true });
 });
 
+
+// ── POST /api/updates/push (admin only) ─────────────────────────
+// Manually push a custom regulatory update into the feed
+router.post('/push', requireRole('admin'), (req, res) => {
+  const { title, summary, link, source, category, urgency, pub_date } = req.body;
+  if (!title) return res.status(400).json({ success: false, message: 'Title required.' });
+
+  const crypto = require('crypto');
+  const hash   = crypto.createHash('sha256')
+    .update((title + (pub_date || '') + (source || '')).trim())
+    .digest('hex');
+
+  // Check duplicate
+  const exists = db.prepare('SELECT id FROM regulatory_updates WHERE content_hash = ?').get(hash);
+  if (exists) return res.json({ success: true, message: 'Already exists.', id: exists.id });
+
+  const r = db.prepare(`
+    INSERT INTO regulatory_updates
+      (title, summary, plain_summary, link, source, category, tag, urgency, pub_date, content_hash, feed_name, is_read)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+  `).run(
+    title,
+    summary || null,
+    summary ? summary.substring(0, 100) : null,
+    link || null,
+    source || 'GS Advisory',
+    category || 'Announcement',
+    'admin-push',
+    urgency || 'Medium',
+    pub_date || new Date().toISOString().split('T')[0],
+    hash,
+    'Admin Push'
+  );
+
+  res.json({ success: true, message: 'Update pushed to feed.', id: r.lastInsertRowid });
+});
+
 module.exports = router;
