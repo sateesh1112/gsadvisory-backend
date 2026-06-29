@@ -25,7 +25,7 @@ router.post('/login', (req, res) => {
   }
 
   // Update last login timestamp
-  db.prepare('UPDATE users SET last_login=datetime("now") WHERE id=?').run(user.id);
+  db.prepare('UPDATE users SET last_login=datetime('now') WHERE id=?').run(user.id);
   const token = jwt.sign(
     { id: user.id, email: user.email, role: user.role, name: user.name },
     process.env.JWT_SECRET,
@@ -91,7 +91,7 @@ router.put('/change-password', authMiddleware, (req, res) => {
   }
 
   const hashed = bcrypt.hashSync(newPassword, 12);
-  db.prepare('UPDATE users SET password = ?, updated_at = datetime("now") WHERE id = ?').run(hashed, req.user.id);
+  db.prepare('UPDATE users SET password = ?, updated_at = datetime('now') WHERE id = ?').run(hashed, req.user.id);
 
   res.json({ success: true, message: 'Password changed successfully.' });
 });
@@ -124,7 +124,7 @@ router.post('/reset-password', authMiddleware, requireRole('admin'), (req, res) 
   if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
 
   const hashed = bcrypt.hashSync(new_password, 12);
-  db.prepare('UPDATE users SET password = ?, updated_at = datetime("now") WHERE id = ?').run(hashed, user_id);
+  db.prepare('UPDATE users SET password = ?, updated_at = datetime('now') WHERE id = ?').run(hashed, user_id);
 
   res.json({ success: true, message: `Password reset for ${user.name} (${user.email}).` });
 });
@@ -143,7 +143,7 @@ router.post('/change-password', authMiddleware, (req, res) => {
     return res.status(400).json({ success: false, message: 'Current password incorrect.' });
 
   const hashed = bcrypt.hashSync(new_password, 12);
-  db.prepare('UPDATE users SET password=?, temp_password_changed=1, updated_at=datetime("now") WHERE id=?').run(hashed, req.user.id);
+  db.prepare('UPDATE users SET password=?, temp_password_changed=1, updated_at=datetime('now') WHERE id=?').run(hashed, req.user.id);
   res.json({ success: true, message: 'Password changed successfully.' });
 });
 
@@ -169,7 +169,7 @@ router.post('/onboard-client', authMiddleware, requireRole('admin'), async (req,
     const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email.toLowerCase());
     let userId;
     if (existing) {
-      db.prepare('UPDATE users SET password=?, temp_password_changed=0, updated_at=datetime("now") WHERE id=?').run(hashed, existing.id);
+      db.prepare('UPDATE users SET password=?, temp_password_changed=0, updated_at=datetime('now') WHERE id=?').run(hashed, existing.id);
       userId = existing.id;
     } else {
       const r = db.prepare('INSERT INTO users (name,email,password,role,temp_password_changed) VALUES (?,?,?,?,0)').run(name, email.toLowerCase(), hashed, 'client');

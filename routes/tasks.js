@@ -90,7 +90,7 @@ router.post('/:id/transfer', requireRole('admin','employee'), (req, res) => {
   if (!to_user_id) return res.status(400).json({ success: false, message: 'to_user_id required.' });
   const task = db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id);
   if (!task) return res.status(404).json({ success: false, message: 'Task not found.' });
-  db.prepare('UPDATE tasks SET assigned_to=?, assigned_by=?, updated_at=datetime("now") WHERE id=?').run(to_user_id, req.user.id, req.params.id);
+  db.prepare('UPDATE tasks SET assigned_to=?, assigned_by=?, updated_at=datetime('now') WHERE id=?').run(to_user_id, req.user.id, req.params.id);
   db.prepare('INSERT INTO task_history (task_id,user_id,action,old_value,new_value,comment) VALUES (?,?,?,?,?,?)').run(req.params.id, req.user.id, 'transferred', String(task.assigned_to), String(to_user_id), reason||null);
   res.json({ success: true, message: 'Task transferred.' });
 });
