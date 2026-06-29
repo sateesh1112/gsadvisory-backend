@@ -92,7 +92,7 @@ router.put('/:id', requireRole('admin', 'employee'), (req, res) => {
       status     = COALESCE(?, status),
       paid_date  = COALESCE(?, paid_date),
       notes      = COALESCE(?, notes),
-      updated_at = datetime('now')
+      updated_at = datetime(\'now\')
     WHERE id = ?
   `).run(status, paid_date || null, notes, req.params.id);
   res.json({ success: true, message: 'Invoice updated.' });
@@ -224,7 +224,7 @@ router.post('/:id/send', requireRole('admin', 'employee'), async (req, res) => {
       `
     });
 
-    db.prepare("UPDATE invoices SET status = 'pending', updated_at = datetime('now') WHERE id = ?").run(req.params.id);
+    db.prepare("UPDATE invoices SET status = 'pending', updated_at = datetime(\'now\') WHERE id = ?").run(req.params.id);
     res.json({ success: true, message: `Invoice sent to ${inv.client_email}` });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Failed to send email.', error: err.message });

@@ -121,7 +121,7 @@ router.put('/:id', requireRole('admin', 'employee'), (req, res) => {
       assigned_to        = COALESCE(?, assigned_to),
       status             = COALESCE(?, status),
       notes              = COALESCE(?, notes),
-      updated_at         = datetime('now')
+      updated_at         = datetime(\'now\')
     WHERE id = ?
   `).run(
     name, email, phone, alternate_phone, whatsapp, entity_type,
@@ -140,7 +140,7 @@ router.put('/:id', requireRole('admin', 'employee'), (req, res) => {
 
 // ── DELETE /api/clients/:id ──────────────────────────────────────
 router.delete('/:id', requireRole('admin'), (req, res) => {
-  db.prepare("UPDATE clients SET status = 'deleted', updated_at = datetime('now') WHERE id = ?").run(req.params.id);
+  db.prepare("UPDATE clients SET status = 'deleted', updated_at = datetime(\'now\') WHERE id = ?").run(req.params.id);
   res.json({ success: true, message: 'Client removed.' });
 });
 

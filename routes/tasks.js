@@ -78,7 +78,7 @@ router.put('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id);
   if (!existing) return res.status(404).json({ success: false, message: 'Task not found.' });
   const { title, description, assigned_to, category, priority, status, due_date, reminder_date, notes } = req.body;
-  db.prepare(`UPDATE tasks SET title=COALESCE(?,title), description=COALESCE(?,description), assigned_to=COALESCE(?,assigned_to), category=COALESCE(?,category), priority=COALESCE(?,priority), status=COALESCE(?,status), due_date=COALESCE(?,due_date), reminder_date=COALESCE(?,reminder_date), notes=COALESCE(?,notes), completed_at=CASE WHEN ?='completed' THEN datetime('now') ELSE completed_at END, updated_at=datetime('now') WHERE id=?`)
+  db.prepare(`UPDATE tasks SET title=COALESCE(?,title), description=COALESCE(?,description), assigned_to=COALESCE(?,assigned_to), category=COALESCE(?,category), priority=COALESCE(?,priority), status=COALESCE(?,status), due_date=COALESCE(?,due_date), reminder_date=COALESCE(?,reminder_date), notes=COALESCE(?,notes), completed_at=CASE WHEN ?='completed' THEN datetime(\'now\') ELSE completed_at END, updated_at=datetime(\'now\') WHERE id=?`)
     .run(title, description, assigned_to, category, priority, status, due_date, reminder_date, notes, status, req.params.id);
   if (status && status !== existing.status) db.prepare('INSERT INTO task_history (task_id,user_id,action,old_value,new_value) VALUES (?,?,?,?,?)').run(req.params.id, req.user.id, 'status_changed', existing.status, status);
   if (assigned_to && assigned_to != existing.assigned_to) db.prepare('INSERT INTO task_history (task_id,user_id,action,old_value,new_value) VALUES (?,?,?,?,?)').run(req.params.id, req.user.id, 'reassigned', String(existing.assigned_to), String(assigned_to));
@@ -90,7 +90,7 @@ router.post('/:id/transfer', requireRole('admin','employee'), (req, res) => {
   if (!to_user_id) return res.status(400).json({ success: false, message: 'to_user_id required.' });
   const task = db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id);
   if (!task) return res.status(404).json({ success: false, message: 'Task not found.' });
-  db.prepare('UPDATE tasks SET assigned_to=?, assigned_by=?, updated_at=datetime('now') WHERE id=?').run(to_user_id, req.user.id, req.params.id);
+  db.prepare('UPDATE tasks SET assigned_to=?, assigned_by=?, updated_at=datetime(\'now\') WHERE id=?').run(to_user_id, req.user.id, req.params.id);
   db.prepare('INSERT INTO task_history (task_id,user_id,action,old_value,new_value,comment) VALUES (?,?,?,?,?,?)').run(req.params.id, req.user.id, 'transferred', String(task.assigned_to), String(to_user_id), reason||null);
   res.json({ success: true, message: 'Task transferred.' });
 });
@@ -109,7 +109,7 @@ router.get('/:id/history', (req, res) => {
 });
 
 router.delete('/:id', requireRole('admin'), (req, res) => {
-  db.prepare("UPDATE tasks SET status='cancelled', updated_at=datetime('now') WHERE id=?").run(req.params.id);
+  db.prepare("UPDATE tasks SET status='cancelled', updated_at=datetime(\'now\') WHERE id=?").run(req.params.id);
   db.prepare('INSERT INTO task_history (task_id,user_id,action) VALUES (?,?,?)').run(req.params.id, req.user.id, 'cancelled');
   res.json({ success: true, message: 'Task cancelled.' });
 });

@@ -86,7 +86,7 @@ router.put('/:id', requireRole('admin'), (req, res) => {
       designation = COALESCE(?, designation),
       department  = COALESCE(?, department),
       is_active   = COALESCE(?, is_active),
-      updated_at  = datetime('now')
+      updated_at  = datetime(\'now\')
     WHERE id = ?
   `).run(name, phone, designation, department, is_active, req.params.id);
   res.json({ success: true, message: 'Member updated.' });
@@ -97,7 +97,7 @@ router.delete('/:id', requireRole('admin'), (req, res) => {
   if (parseInt(req.params.id) === req.user.id) {
     return res.status(400).json({ success: false, message: 'You cannot deactivate yourself.' });
   }
-  db.prepare('UPDATE users SET is_active = 0, updated_at = datetime('now') WHERE id = ?').run(req.params.id);
+  db.prepare('UPDATE users SET is_active = 0, updated_at = datetime(\'now\') WHERE id = ?').run(req.params.id);
   res.json({ success: true, message: 'Team member deactivated.' });
 });
 
@@ -130,12 +130,12 @@ router.post('/reassign', requireRole('admin'), (req, res) => {
   let count = 0;
   if (task_ids && task_ids.length) {
     // Reassign specific tasks
-    const stmt = db.prepare('UPDATE tasks SET assigned_to = ?, updated_at = datetime('now') WHERE id = ?');
+    const stmt = db.prepare('UPDATE tasks SET assigned_to = ?, updated_at = datetime(\'now\') WHERE id = ?');
     task_ids.forEach(id => { stmt.run(to_user_id, id); count++; });
   } else {
     // Reassign all pending tasks
     const result = db.prepare(`
-      UPDATE tasks SET assigned_to = ?, updated_at = datetime('now')
+      UPDATE tasks SET assigned_to = ?, updated_at = datetime(\'now\')
       WHERE assigned_to = ? AND status NOT IN ('completed','cancelled')
     `).run(to_user_id, from_user_id);
     count = result.changes;

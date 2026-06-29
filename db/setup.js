@@ -68,8 +68,8 @@ function initDB() {
       department  TEXT,
       is_active   INTEGER DEFAULT 1,
       last_login  TEXT,
-      created_at  TEXT    DEFAULT (datetime('now')),
-      updated_at  TEXT    DEFAULT (datetime('now'))
+      created_at  TEXT    DEFAULT (datetime(\'now\')),
+      updated_at  TEXT    DEFAULT (datetime(\'now\'))
     );
 
     -- CLIENTS
@@ -91,8 +91,8 @@ function initDB() {
       assigned_to  INTEGER REFERENCES users(id),
       user_id      INTEGER REFERENCES users(id),
       notes        TEXT,
-      created_at   TEXT    DEFAULT (datetime('now')),
-      updated_at   TEXT    DEFAULT (datetime('now'))
+      created_at   TEXT    DEFAULT (datetime(\'now\')),
+      updated_at   TEXT    DEFAULT (datetime(\'now\'))
     );
 
     -- TASKS
@@ -114,8 +114,8 @@ function initDB() {
       is_recurring  INTEGER DEFAULT 0,
       recurrence    TEXT,
       parent_task_id INTEGER REFERENCES tasks(id),
-      created_at    TEXT    DEFAULT (datetime('now')),
-      updated_at    TEXT    DEFAULT (datetime('now'))
+      created_at    TEXT    DEFAULT (datetime(\'now\')),
+      updated_at    TEXT    DEFAULT (datetime(\'now\'))
     );
 
     -- TASK HISTORY (audit trail)
@@ -127,7 +127,7 @@ function initDB() {
       old_value  TEXT,
       new_value  TEXT,
       comment    TEXT,
-      created_at TEXT    DEFAULT (datetime('now'))
+      created_at TEXT    DEFAULT (datetime(\'now\'))
     );
 
     -- TASK COMMENTS
@@ -136,7 +136,7 @@ function initDB() {
       task_id    INTEGER REFERENCES tasks(id),
       user_id    INTEGER REFERENCES users(id),
       comment    TEXT    NOT NULL,
-      created_at TEXT    DEFAULT (datetime('now'))
+      created_at TEXT    DEFAULT (datetime(\'now\'))
     );
 
     -- COMPLIANCE CALENDAR
@@ -153,7 +153,7 @@ function initDB() {
       reminder_sent INTEGER DEFAULT 0,
       notes        TEXT,
       created_by   INTEGER REFERENCES users(id),
-      created_at   TEXT    DEFAULT (datetime('now'))
+      created_at   TEXT    DEFAULT (datetime(\'now\'))
     );
 
     -- INVOICES
@@ -173,8 +173,8 @@ function initDB() {
       paid_date      TEXT,
       notes          TEXT,
       pdf_path       TEXT,
-      created_at     TEXT    DEFAULT (datetime('now')),
-      updated_at     TEXT    DEFAULT (datetime('now'))
+      created_at     TEXT    DEFAULT (datetime(\'now\')),
+      updated_at     TEXT    DEFAULT (datetime(\'now\'))
     );
 
     -- DOCUMENTS
@@ -191,7 +191,7 @@ function initDB() {
       category      TEXT    DEFAULT 'general',
       description   TEXT,
       is_shared     INTEGER DEFAULT 0,
-      created_at    TEXT    DEFAULT (datetime('now'))
+      created_at    TEXT    DEFAULT (datetime(\'now\'))
     );
 
     -- CONTACT INQUIRIES
@@ -204,7 +204,7 @@ function initDB() {
       service    TEXT,
       message    TEXT    NOT NULL,
       status     TEXT    DEFAULT 'new',
-      created_at TEXT    DEFAULT (datetime('now'))
+      created_at TEXT    DEFAULT (datetime(\'now\'))
     );
 
     -- REMINDERS LOG
@@ -220,7 +220,7 @@ function initDB() {
       status       TEXT    DEFAULT 'pending',
       scheduled_at TEXT,
       sent_at      TEXT,
-      created_at   TEXT    DEFAULT (datetime('now'))
+      created_at   TEXT    DEFAULT (datetime(\'now\'))
     );
 
     -- BILLABLE HOURS
@@ -235,7 +235,7 @@ function initDB() {
       date        TEXT    DEFAULT (date('now')),
       is_billed   INTEGER DEFAULT 0,
       invoice_id  INTEGER REFERENCES invoices(id),
-      created_at  TEXT    DEFAULT (datetime('now'))
+      created_at  TEXT    DEFAULT (datetime(\'now\'))
     );
   
     -- REGULATORY UPDATES (RSS feeds)
@@ -253,7 +253,7 @@ function initDB() {
       content_hash  TEXT    UNIQUE NOT NULL,
       feed_name     TEXT,
       is_read       INTEGER DEFAULT 0,
-      created_at    TEXT    DEFAULT (datetime('now'))
+      created_at    TEXT    DEFAULT (datetime(\'now\'))
     );
 
     -- SYSTEM SETTINGS

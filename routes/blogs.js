@@ -25,8 +25,8 @@ function ensureTable() {
     author_name TEXT,
     status      TEXT DEFAULT 'draft',
     views       INTEGER DEFAULT 0,
-    created_at  TEXT DEFAULT (datetime('now')),
-    updated_at  TEXT DEFAULT (datetime('now')),
+    created_at  TEXT DEFAULT (datetime(\'now\')),
+    updated_at  TEXT DEFAULT (datetime(\'now\')),
     published_at TEXT
   )`);
 }
@@ -87,7 +87,7 @@ router.put('/:id', (req, res) => {
     if (!existing) return res.status(404).json({ success: false, message: 'Not found.' });
     if (existing.author_id !== req.user.id && req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Not your blog.' });
     const pub = status === 'published' && !existing.published_at ? new Date().toISOString() : existing.published_at;
-    db.prepare(`UPDATE blogs SET title=COALESCE(?,title),excerpt=COALESCE(?,excerpt),content=COALESCE(?,content),cover_image=COALESCE(?,cover_image),category=COALESCE(?,category),tags=COALESCE(?,tags),status=COALESCE(?,status),published_at=?,updated_at=datetime('now') WHERE id=?`)
+    db.prepare(`UPDATE blogs SET title=COALESCE(?,title),excerpt=COALESCE(?,excerpt),content=COALESCE(?,content),cover_image=COALESCE(?,cover_image),category=COALESCE(?,category),tags=COALESCE(?,tags),status=COALESCE(?,status),published_at=?,updated_at=datetime(\'now\') WHERE id=?`)
       .run(title,excerpt,content,cover_image,category,tags,status,pub,req.params.id);
     res.json({ success: true, message: 'Blog updated.' });
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }

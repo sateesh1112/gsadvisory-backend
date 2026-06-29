@@ -14,7 +14,7 @@ function ensureTable() {
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL, body TEXT, link TEXT, category TEXT DEFAULT 'Announcement',
     urgency TEXT DEFAULT 'Medium', is_active INTEGER DEFAULT 1,
-    created_at TEXT DEFAULT (datetime('now'))
+    created_at TEXT DEFAULT (datetime(\'now\'))
   )`);
 }
 
